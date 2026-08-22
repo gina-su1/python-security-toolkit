@@ -1,4 +1,5 @@
 import socket
+import sys
 
 def scan_port(target, port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -16,7 +17,11 @@ def scan_port(target, port):
 
     return status
 
-target = "127.0.0.1"
+if len(sys.argv) < 2:
+    print("Usage: python3 src/scanner.py <target>")
+    sys.exit(1)
+
+target = sys.argv[1]
 ports = [22, 23, 25, 53, 80, 443, 8080]
 
 for port in ports:
