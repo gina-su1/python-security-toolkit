@@ -12,6 +12,14 @@ services = {
     3389: "RDP"
 }
 
+security_rules = {
+    "Telnet": {
+        "severity": "HIGH",
+        "finding": "Telnet service exposed",
+        "recommendation": "Replace Telnet with SSH because Telnet does not provide encrypted communication."
+    }
+}
+
 def scan_port(target, port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(1)
@@ -60,6 +68,18 @@ def enumerate_service(target, port):
     finally:
         sock.close()
 
+def analyze_security(result):
+    if result["status"] != "OPEN":
+        return None
+
+    service = result["service"]
+    rule = security_rules.get(service)
+
+    if rule:
+        return rule
+
+    return None
+
 if len(sys.argv) < 3:
     print("Usage: python3 src/scanner.py <target> <start_port>-<end_port>")
     sys.exit(1)
@@ -92,6 +112,7 @@ if start_port > end_port:
 ports = range(start_port, end_port + 1)
 
 results = []
+security_findings = []
 
 for port in ports:
     result = scan_port(target, port)
@@ -109,18 +130,31 @@ for port in ports:
         service = None
         banner = None
 
-    results.append({
+    scan_result = {
         "port": port,
         "status": result,
         "service": service,
         "banner": banner
-    })
+    }
+
+    finding = analyze_security(scan_result)
+
+    scan_result["finding"] = finding
+    results.append(scan_result)
+
+    if finding:
+        security_findings.append(scan_result)
 
     if result == "OPEN":
         print(f"Port {port}: OPEN (Service: {service})")
 
         if banner:
             print(f"  Banner: {banner}")
+
+        if finding:
+            print(f"  Security Finding: {finding['finding']}")
+            print(f"  Severity: {finding['severity']}")
+            print(f"  Recommendation: {finding['recommendation']}")
     else:
         print(f"Port {port}: {result}")
 
@@ -135,5 +169,19 @@ for result in results:
 
 if not found_open_port:
     print("None detected")
+
+print("\nSecurity Findings:")
+
+if not security_findings:
+    print("None detected")
+else:
+    for result in security_findings:
+        finding = result["finding"]
+
+        print(f"\nPort {result['port']} - {result['service']}")
+        print(f"Severity: {finding['severity']}")
+        print(f"Finding: {finding['finding']}")
+        print(f"Recommendation: {finding['recommendation']}")
+
 
 
