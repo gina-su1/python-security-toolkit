@@ -1,6 +1,17 @@
 import socket
 import sys
 
+services = {
+    21: "FTP",
+    22: "SSH",
+    23: "Telnet",
+    25: "SMTP",
+    53: "DNS",
+    80: "HTTP",
+    443: "HTTPS",
+    3389: "RDP"
+}
+
 def scan_port(target, port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(1)
@@ -16,6 +27,30 @@ def scan_port(target, port):
     sock.close()
 
     return status
+
+def enumerate_service(target, port):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(2)
+
+    try:
+        sock.connect((target, port))
+        sock.sendall(b"HEAD / HTTP/1.0\r\n\r\n")
+        response = sock.recv(4096).decode()
+
+        if "HTTP/" in response:
+            service = "HTTP"
+        else:
+            service = "Unknown"
+        return {
+            "service": service,
+            "response": response
+        }
+
+    except (ConnectionRefusedError, socket.timeout):
+        return None
+
+    finally:
+        sock.close()
 
 if len(sys.argv) < 3:
     print("Usage: python3 src/scanner.py <target> <start_port>-<end_port>")
@@ -53,12 +88,26 @@ results = []
 for port in ports:
     result = scan_port(target, port)
 
+    if result == "OPEN":
+        service_info = enumerate_service(target, port)
+
+        if service_info:
+            service = service_info["service"]
+        else:
+            service = services.get(port, "Unknown")
+    else:
+        service = None
+
     results.append({
         "port": port,
-        "status": result
+        "status": result,
+        "service": service
     })
 
-    print(f"Port {port}: {result}")
+    if result == "OPEN":
+        print(f"Port {port}: OPEN (Service: {service})")
+    else:
+        print(f"Port {port}: {result}")
 
 print("\nOpen ports:")
 
@@ -71,3 +120,5 @@ for result in results:
 
 if not found_open_port:
     print("None detected")
+
+
