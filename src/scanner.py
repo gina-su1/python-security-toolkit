@@ -41,9 +41,17 @@ def enumerate_service(target, port):
             service = "HTTP"
         else:
             service = "Unknown"
+
+        banner = None
+
+        for line in response.splitlines():
+            if line.startswith("Server:"):
+                banner = line.split(":", 1)[1].strip()
+                break
+
         return {
             "service": service,
-            "response": response
+            "banner": banner
         }
 
     except (ConnectionRefusedError, socket.timeout):
@@ -93,19 +101,26 @@ for port in ports:
 
         if service_info:
             service = service_info["service"]
+            banner = service_info["banner"]
         else:
             service = services.get(port, "Unknown")
+            banner = None
     else:
         service = None
+        banner = None
 
     results.append({
         "port": port,
         "status": result,
-        "service": service
+        "service": service,
+        "banner": banner
     })
 
     if result == "OPEN":
         print(f"Port {port}: OPEN (Service: {service})")
+
+        if banner:
+            print(f"  Banner: {banner}")
     else:
         print(f"Port {port}: {result}")
 
