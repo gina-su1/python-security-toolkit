@@ -17,6 +17,21 @@ security_rules = {
         "severity": "HIGH",
         "finding": "Telnet service exposed",
         "recommendation": "Replace Telnet with SSH because Telnet does not provide encrypted communication."
+    },
+    "FTP": {
+        "severity": "MEDIUM",
+        "finding": "FTP service exposed",
+        "recommendation": "Consider replacing FTP with SFTP or FTPS to protect credentials and data in transit."
+    },
+    "HTTP": {
+        "severity": "LOW",
+        "finding": "Unencrypted HTTP service exposed",
+        "recommendation": "Consider using HTTPS to protect data transmitted between clients and the server."
+    },
+    "RDP": {
+        "severity": "MEDIUM",
+        "finding": "Remote Desktop Protocol service exposed",
+        "recommendation": "Restrict RDP access to trusted networks or VPN connections and enforce strong authentication."
     }
 }
 
@@ -123,18 +138,22 @@ for port in ports:
         if service_info:
             service = service_info["service"]
             banner = service_info["banner"]
+            detection_method = "Service response"
         else:
             service = services.get(port, "Unknown")
             banner = None
+            detection_method = "Port mapping"
     else:
         service = None
         banner = None
+        detection_method = None
 
     scan_result = {
         "port": port,
         "status": result,
         "service": service,
-        "banner": banner
+        "banner": banner,
+        "detection_method": detection_method
     }
 
     finding = analyze_security(scan_result)
@@ -147,6 +166,7 @@ for port in ports:
 
     if result == "OPEN":
         print(f"Port {port}: OPEN (Service: {service})")
+        print(f"  Detection: {detection_method}")
 
         if banner:
             print(f"  Banner: {banner}")
