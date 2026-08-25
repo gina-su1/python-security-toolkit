@@ -1,5 +1,6 @@
 import socket
 import sys
+import json
 
 services = {
     21: "FTP",
@@ -121,8 +122,12 @@ def analyze_security(result):
 
     return None
 
+def save_json_report(results, filename):
+    with open(filename, "w") as file:
+        json.dump(results, file, indent=4)
+
 if len(sys.argv) < 3:
-    print("Usage: python3 src/scanner.py <target> <start_port>-<end_port>")
+    print("Usage: python3 src/scanner.py <target> <start_port>-<end_port> [--json]")
     sys.exit(1)
 
 try:
@@ -132,6 +137,8 @@ except socket.gaierror:
     sys.exit(1)
 
 port_range = sys.argv[2]
+
+json_output = "--json" in sys.argv
 
 if "-" not in port_range:
     print("Invalid port range. Use the format <start>-<end>.")
@@ -229,5 +236,8 @@ else:
         print(f"Finding: {finding['finding']}")
         print(f"Recommendation: {finding['recommendation']}")
 
-
+if json_output:
+    print("\nJSON Output:")
+    print(json.dumps(results, indent=4))
+    save_json_report(results, "scan_results.json")
 
