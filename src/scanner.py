@@ -1,6 +1,7 @@
 import socket
 import sys
 import json
+from datetime import datetime
 
 services = {
     21: "FTP",
@@ -122,16 +123,33 @@ def analyze_security(result):
 
     return None
 
-def save_json_report(results, filename):
+def build_report(results, target_input, target, scan_range):
+    open_ports = sum(1 for result in results if result["status"] == "OPEN")
+    findings = sum(1 for result in results if result["finding"])
+
+    return {
+        "target": target_input,
+        "resolved_ip": target,
+        "scan_range": scan_range,
+        "scan_time": datetime.now().isoformat(),
+        "ports_scanned": len(results),
+        "open_ports": open_ports,
+        "security_findings": findings,
+        "results": results
+    }
+
+def save_json_report(report, filename):
     with open(filename, "w") as file:
-        json.dump(results, file, indent=4)
+        json.dump(report, file, indent=4)
 
 if len(sys.argv) < 3:
     print("Usage: python3 src/scanner.py <target> <start_port>-<end_port> [--json]")
     sys.exit(1)
 
+target_input = sys.argv[1]
+
 try:
-    target = socket.gethostbyname(sys.argv[1])
+    target = socket.gethostbyname(target_input)
 except socket.gaierror:
     print("Invalid target. Target must be a valid IP address or resolvable hostname.")
     sys.exit(1)
@@ -237,7 +255,10 @@ else:
         print(f"Recommendation: {finding['recommendation']}")
 
 if json_output:
+    report = build_report(results, target_input, target, port_range)
+
     print("\nJSON Output:")
-    print(json.dumps(results, indent=4))
-    save_json_report(results, "scan_results.json")
+    print(json.dumps(report, indent=4))
+
+    save_json_report(report, "scan_results.json")
 
