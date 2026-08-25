@@ -142,123 +142,126 @@ def save_json_report(report, filename):
     with open(filename, "w") as file:
         json.dump(report, file, indent=4)
 
-if len(sys.argv) < 3:
-    print("Usage: python3 src/scanner.py <target> <start_port>-<end_port> [--json]")
-    sys.exit(1)
+if __name__ == "__main__":
 
-target_input = sys.argv[1]
+    if len(sys.argv) < 3:
+        print("Usage: python3 src/scanner.py <target> <start_port>-<end_port> [--json]")
+        sys.exit(1)
 
-try:
-    target = socket.gethostbyname(target_input)
-except socket.gaierror:
-    print("Invalid target. Target must be a valid IP address or resolvable hostname.")
-    sys.exit(1)
+    target_input = sys.argv[1]
 
-port_range = sys.argv[2]
+    try:
+        target = socket.gethostbyname(target_input)
+    except socket.gaierror:
+        print("Invalid target. Target must be a valid IP address or resolvable hostname.")
+        sys.exit(1)
 
-json_output = "--json" in sys.argv
+    port_range = sys.argv[2]
 
-if "-" not in port_range:
-    print("Invalid port range. Use the format <start>-<end>.")
-    sys.exit(1)
+    json_output = "--json" in sys.argv
 
-start_port, end_port = port_range.split("-")
+    if "-" not in port_range:
+        print("Invalid port range. Use the format <start>-<end>.")
+        sys.exit(1)
 
-start_port = int(start_port)
-end_port = int(end_port)
+    start_port, end_port = port_range.split("-")
 
-if start_port < 1 or end_port > 65535:
-    print("Invalid port range. Ports must be between 1 and 65535.")
-    sys.exit(1)
+    start_port = int(start_port)
+    end_port = int(end_port)
 
-if start_port > end_port:
-    print("Invalid port range. Start port must be less than or equal to end port.")
-    sys.exit(1)
+    if start_port < 1 or end_port > 65535:
+        print("Invalid port range. Ports must be between 1 and 65535.")
+        sys.exit(1)
 
-ports = range(start_port, end_port + 1)
+    if start_port > end_port:
+        print("Invalid port range. Start port must be less than or equal to end port.")
+        sys.exit(1)
 
-results = []
-security_findings = []
+    ports = range(start_port, end_port + 1)
 
-for port in ports:
-    result = scan_port(target, port)
+    results = []
+    security_findings = []
 
-    if result == "OPEN":
-        service_info = enumerate_service(target, port)
+    for port in ports:
+        result = scan_port(target, port)
 
-        if service_info:
-            service = service_info["service"]
-            banner = service_info["banner"]
-            detection_method = "Service response"
+        if result == "OPEN":
+            service_info = enumerate_service(target, port)
+
+            if service_info:
+                service = service_info["service"]
+                banner = service_info["banner"]
+                detection_method = "Service response"
+            else:
+                service = services.get(port, "Unknown")
+                banner = None
+                detection_method = "Port mapping"
         else:
-            service = services.get(port, "Unknown")
+            service = None
             banner = None
-            detection_method = "Port mapping"
-    else:
-        service = None
-        banner = None
-        detection_method = None
+            detection_method = None
 
-    scan_result = {
-        "port": port,
-        "status": result,
-        "service": service,
-        "banner": banner,
-        "detection_method": detection_method
-    }
+        scan_result = {
+            "port": port,
+            "status": result,
+            "service": service,
+            "banner": banner,
+            "detection_method": detection_method
+        }
 
-    finding = analyze_security(scan_result)
+        finding = analyze_security(scan_result)
 
-    scan_result["finding"] = finding
-    results.append(scan_result)
-
-    if finding:
-        security_findings.append(scan_result)
-
-    if result == "OPEN":
-        print(f"Port {port}: OPEN (Service: {service})")
-        print(f"  Detection: {detection_method}")
-
-        if banner:
-            print(f"  Banner: {banner}")
+        scan_result["finding"] = finding
+        results.append(scan_result)
 
         if finding:
-            print(f"  Security Finding: {finding['finding']}")
-            print(f"  Severity: {finding['severity']}")
-            print(f"  Recommendation: {finding['recommendation']}")
+            security_findings.append(scan_result)
+
+        if result == "OPEN":
+            print(f"Port {port}: OPEN (Service: {service})")
+            print(f"  Detection: {detection_method}")
+
+            if banner:
+                print(f"  Banner: {banner}")
+
+            if finding:
+                print(f"  Security Finding: {finding['finding']}")
+                print(f"  Severity: {finding['severity']}")
+                print(f"  Recommendation: {finding['recommendation']}")
+        else:
+            print(f"Port {port}: {result}")
+
+    print("\nOpen ports:")
+
+    found_open_port = False
+
+    for result in results:
+        if result["status"] == "OPEN":
+            print(result["port"])
+            found_open_port = True
+
+    if not found_open_port:
+        print("None detected")
+
+    print("\nSecurity Findings:")
+
+    if not security_findings:
+        print("None detected")
     else:
-        print(f"Port {port}: {result}")
+        for result in security_findings:
+            finding = result["finding"]
 
-print("\nOpen ports:")
+            print(f"\nPort {result['port']} - {result['service']}")
+            print(f"Severity: {finding['severity']}")
+            print(f"Finding: {finding['finding']}")
+            print(f"Recommendation: {finding['recommendation']}")
 
-found_open_port = False
+    if json_output:
+        report = build_report(results, target_input, target, port_range)
 
-for result in results:
-    if result["status"] == "OPEN":
-        print(result["port"])
-        found_open_port = True
+        print("\nJSON Output:")
+        print(json.dumps(report, indent=4))
 
-if not found_open_port:
-    print("None detected")
+        save_json_report(report, "scan_results.json")
 
-print("\nSecurity Findings:")
-
-if not security_findings:
-    print("None detected")
-else:
-    for result in security_findings:
-        finding = result["finding"]
-
-        print(f"\nPort {result['port']} - {result['service']}")
-        print(f"Severity: {finding['severity']}")
-        print(f"Finding: {finding['finding']}")
-        print(f"Recommendation: {finding['recommendation']}")
-
-if json_output:
-    report = build_report(results, target_input, target, port_range)
-
-    print("\nJSON Output:")
-    print(json.dumps(report, indent=4))
-
-    save_json_report(report, "scan_results.json")
 
