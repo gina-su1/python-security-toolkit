@@ -51,26 +51,52 @@ def scan_port(target, port):
 
     return status
 
+def identify_service(response):
+    if "HTTP/" in response:
+        return "HTTP"
+
+    if response.startswith("SSH-"):
+        return "SSH"
+
+    if "FTP" in response:
+        return "FTP"
+
+    if "SMTP" in response:
+        return "SMTP"
+
+    return "Unknown"
+
+def extract_banner(response, service):
+    if service == "HTTP":
+        for line in response.splitlines():
+            if line.startswith("Server:"):
+                return line.split(":", 1)[1].strip()
+
+    if service == "SSH":
+        for line in response.splitlines():
+            if line.startswith("SSH-"):
+                return line.strip()
+
+    if service in ["FTP", "SMTP"]:
+        for line in response.splitlines():
+            if line.startswith("220"):
+                return line.strip()
+
+    return None
+
 def enumerate_service(target, port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(2)
 
     try:
         sock.connect((target, port))
-        sock.sendall(b"HEAD / HTTP/1.0\r\n\r\n")
+
+        if port in [80, 8080, 8000, 8008]:
+            sock.sendall(b"HEAD / HTTP/1.0\r\n\r\n")
         response = sock.recv(4096).decode()
 
-        if "HTTP/" in response:
-            service = "HTTP"
-        else:
-            service = "Unknown"
-
-        banner = None
-
-        for line in response.splitlines():
-            if line.startswith("Server:"):
-                banner = line.split(":", 1)[1].strip()
-                break
+        service = identify_service(response)
+        banner = extract_banner(response, service)
 
         return {
             "service": service,
